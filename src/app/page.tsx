@@ -1,101 +1,181 @@
-import Image from "next/image";
+/* eslint-disable react-hooks/exhaustive-deps */
+"use client";
 
-export default function Home() {
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import {
+  getFilteredItems,
+  getNextIndex,
+  getPageURL,
+  getTotalPageCount,
+  scrollToTop,
+} from "./common/utils";
+import { ContentItem, PageItem } from "./common/interfaces";
+import ContentCard from "./components/contentCard";
+import { FaArrowCircleUp } from "react-icons/fa";
+import Header from "./components/header";
+
+const HomePage: React.FC = () => {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState<ContentItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [searchKey, setSearchKey] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [isFinalPage, setIsFinalPage] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(0);
+  const [windowHeight, setWindowHeight] = useState(0);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const contentSectionRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Loads a page of content from the server.
+   * - Fetches data from the backend using the provided page number.
+   * - Updates the title, content list, and final page status.
+   * @param {number} pageNum - The page number to load.
+   */
+  const loadPage = async (pageNum: number) => {
+    try {
+      const res = await fetch(getPageURL(pageNum));
+      const json = await res.json();
+      const pageData: PageItem = json.page;
+      if (pageData.title !== title) {
+        setTitle(pageData.title);
+      }
+      const totalPageCount = getTotalPageCount(
+        pageData["total-content-items"],
+        pageData["page-size-requested"]
+      );
+      setIsFinalPage(totalPageCount === pageNum);
+      setContent((prev) => [...prev, ...pageData["content-items"].content]);
+    } catch (e) {
+      console.error(`Failed to load page ${pageNum}:`, e);
+    }
+  };
+
+  /**
+   * Loads content when page number updates,
+   * unless the final page has already been reached.
+   */
+  useEffect(() => {
+    if (!isFinalPage) {
+      loadPage(page);
+    }
+  }, [page, isFinalPage]);
+
+  /**
+   * Sets up an IntersectionObserver to load the next page
+   * when the user scrolls near the bottom of the content.
+   */
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setPage((prev) => prev + 1);
+      }
+    });
+    if (viewportRef.current) observer.observe(viewportRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * Updates the window width and height on resize.
+   */
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+      setWindowHeight(window.innerHeight);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const filteredContent = getFilteredItems(content, searchKey);
+  const isPortrait = windowWidth < windowHeight;
+  const columnCount = isPortrait ? 3 : 5;
+
+  /**
+   * Handles arrow key navigation for grid items.
+   * @param {KeyboardEvent} e - The keyboard event.
+   */
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const focusable =
+        contentSectionRef.current?.querySelectorAll('[tabindex="0"]');
+      if (!focusable || !document.activeElement) return;
+      const currentIndex = Array.from(focusable).indexOf(
+        document.activeElement as HTMLElement
+      );
+
+      if (currentIndex === -1) return;
+
+      const nextIndex = getNextIndex(e.key, currentIndex, columnCount);
+
+      if (nextIndex >= 0 && nextIndex < focusable.length) {
+        (focusable[nextIndex] as HTMLElement).focus();
+        e.preventDefault();
+      }
+    },
+    [columnCount]
+  );
+
+  /**
+   * Toggles the visibility of the "scroll to top" button based on scroll position.
+   */
+  const toggleVisible = () => {
+    const scrolled = document.documentElement.scrollTop;
+    if (scrolled > 300) {
+      setVisible(true);
+    } else if (scrolled <= 300) {
+      setVisible(false);
+    }
+  };
+
+  /**
+   * Adds/removes event listeners.
+   */
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  useEffect(() => {
+    window.addEventListener("scroll", toggleVisible);
+    return () => window.removeEventListener("scroll", toggleVisible);
+  }, [toggleVisible]);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="p-4 mb-4">
+      <Header
+        title={title}
+        searchKey={searchKey}
+        visible={visible}
+        setSearch={setSearchKey}
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {filteredContent.length > 0 && (
+        <div
+          ref={contentSectionRef}
+          className={`content-section grid gap-4 mt-4 mb-8 grid-cols-${columnCount}`}
+        >
+          {filteredContent.map((item, index) => (
+            <ContentCard key={index} cardItem={item} />
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {filteredContent.length === 0 && (
+        <div className="content-section mt-8 text-sm text-center italic">
+          No results found.
+        </div>
+      )}
+
+      <div ref={viewportRef} />
+
+      {visible && (
+        <button className="fixed bottom-4 right-4 scroll-to-top">
+          <FaArrowCircleUp className="w-8 h-8" onClick={scrollToTop} />
+        </button>
+      )}
     </div>
   );
-}
+};
+
+export default HomePage;
