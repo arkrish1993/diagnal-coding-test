@@ -9,7 +9,7 @@ const titillium = Titillium_Web({
 });
 
 export const metadata: Metadata = {
-  title: "Diagnal Content Listing App",
+  title: "Content List",
 };
 
 export default function RootLayout({

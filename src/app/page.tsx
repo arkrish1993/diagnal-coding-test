@@ -19,7 +19,8 @@ const HomePage: React.FC = () => {
   const [content, setContent] = useState<ContentItem[]>([]);
   const [page, setPage] = useState(1);
   const [searchKey, setSearchKey] = useState("");
-  const [visible, setVisible] = useState(false);
+  const [isVisible, setVisible] = useState(false);
+  const [isLoading, setLoading] = useState(true);
   const [isFinalPage, setIsFinalPage] = useState(false);
   const [windowWidth, setWindowWidth] = useState(0);
   const [windowHeight, setWindowHeight] = useState(0);
@@ -34,6 +35,7 @@ const HomePage: React.FC = () => {
    */
   const loadPage = async (pageNum: number) => {
     try {
+      setLoading(true);
       const res = await fetch(getPageURL(pageNum));
       const json = await res.json();
       const pageData: PageItem = json.page;
@@ -45,8 +47,10 @@ const HomePage: React.FC = () => {
         pageData["page-size-requested"]
       );
       setIsFinalPage(totalPageCount === pageNum);
+      setLoading(false);
       setContent((prev) => [...prev, ...pageData["content-items"].content]);
     } catch (e) {
+      setLoading(false);
       console.error(`Failed to load page ${pageNum}:`, e);
     }
   };
@@ -146,14 +150,14 @@ const HomePage: React.FC = () => {
       <Header
         title={title}
         searchKey={searchKey}
-        visible={visible}
+        visible={isVisible}
         setSearch={setSearchKey}
       />
 
       {filteredContent.length > 0 && (
         <div
           ref={contentSectionRef}
-          className={`content-section grid gap-4 mt-4 mb-8 grid-cols-3 md:grid-cols-5`}
+          className={`content-section grid gap-4 mt-4 pb-8 mb-8 grid-cols-3 md:grid-cols-5`}
         >
           {filteredContent.map((item, index) => (
             <ContentCard key={index} cardItem={item} />
@@ -163,13 +167,13 @@ const HomePage: React.FC = () => {
 
       {filteredContent.length === 0 && (
         <div className="content-section mt-8 text-sm text-center italic">
-          No results found.
+          {isLoading ? "Loading..." : "No results found."}
         </div>
       )}
 
       <div ref={viewportRef} />
 
-      {visible && (
+      {isVisible && (
         <button className="fixed bottom-4 right-4 scroll-to-top">
           <FaArrowCircleUp className="w-8 h-8" onClick={scrollToTop} />
         </button>
