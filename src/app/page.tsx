@@ -153,7 +153,7 @@ const HomePage: React.FC = () => {
       {filteredContent.length > 0 && (
         <div
           ref={contentSectionRef}
-          className={`content-section grid gap-4 mt-4 mb-8 grid-cols-${columnCount}`}
+          className={`content-section grid gap-4 mt-4 mb-8 grid-cols-3 md:grid-cols-5`}
         >
           {filteredContent.map((item, index) => (
             <ContentCard key={index} cardItem={item} />
